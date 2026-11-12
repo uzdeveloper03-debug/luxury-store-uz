@@ -1,0 +1,3 @@
+# Нужен ТОЛЬКО если DATABASE_URL указывает на PostgreSQL
+-r requirements.txt
+psycopg[binary]>=3.1,<4
