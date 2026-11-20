@@ -215,3 +215,32 @@ class AdminProductOut(BaseModel):
 
 class StatusIn(BaseModel):
     status: Literal["confirmed", "shipped", "delivered", "cancelled"]
+
+
+# ---------- пользователь: избранное, корзина, профиль ----------
+
+class CartAddIn(BaseModel):
+    size_id: int = Field(gt=0)
+    quantity: int = Field(default=1, ge=1, le=10)
+
+
+class CartQuantityIn(BaseModel):
+    quantity: int = Field(ge=1, le=10)
+
+
+class CartItemOut(BaseModel):
+    id: int
+    product: ProductPublic
+    size_id: int
+    size: str
+    quantity: int
+    available: int
+
+
+class ProfileOut(BaseModel):
+    id: int
+    telegram_id: int
+    first_name: str
+    username: str | None
+    language: Literal["ru", "uz"]
+    created_at: datetime

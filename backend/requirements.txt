@@ -10,3 +10,6 @@ pyjwt>=2.8,<3
 # Для запуска тестов
 pytest>=8.0,<10
 httpx>=0.27,<1
+
+# PostgreSQL driver for Render
+psycopg[binary]>=3.2,<4

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
@@ -44,8 +44,14 @@ def products(q: str | None = Query(None, max_length=100), brand_id: int | None =
              limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0),
              db: Session = Depends(get_db)):
     cond = [Product.is_published.is_(True)]
-    if q:
-        cond.append(Product.name.icontains(q.strip(), autoescape=True))
+    if q and q.strip():
+        term = q.strip()
+        cond.append(or_(
+            Product.name.icontains(term, autoescape=True),
+            Product.brand.has(Brand.name.icontains(term, autoescape=True)),
+            Product.description_ru.icontains(term, autoescape=True),
+            Product.description_uz.icontains(term, autoescape=True),
+        ))
     if brand_id:
         cond.append(Product.brand_id == brand_id)
     if category_id:

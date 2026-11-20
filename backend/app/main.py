@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import admin, orders, public
+from app.api import admin, orders, public, user
 from app.core.config import get_settings
 from app.core.validation import origin_of
 
@@ -43,6 +43,7 @@ async def security_headers(request, call_next):
 
 app.include_router(public.router)
 app.include_router(orders.router)
+app.include_router(user.router)
 app.include_router(admin.login_router)
 app.include_router(admin.router)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
@@ -51,3 +52,10 @@ app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads"
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+# Mini App frontend
+frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
+admin_dir = Path(__file__).resolve().parents[2] / "admin"
+app.mount("/admin", StaticFiles(directory=str(admin_dir), html=True), name="admin")
+
+app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

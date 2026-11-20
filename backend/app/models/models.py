@@ -118,3 +118,46 @@ class OrderItem(Base):
     quantity: Mapped[int] = mapped_column(Integer)
 
     __table_args__ = (CheckConstraint("quantity > 0", name="ck_item_qty_pos"),)
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "product_id", name="uq_favorite_user_product"),
+    )
+
+
+class CartItem(Base):
+    __tablename__ = "cart_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    size_id: Mapped[int] = mapped_column(
+        ForeignKey("product_sizes.id", ondelete="CASCADE"), index=True
+    )
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "size_id", name="uq_cart_user_size"),
+        CheckConstraint("quantity >= 1 AND quantity <= 10", name="ck_cart_quantity"),
+    )

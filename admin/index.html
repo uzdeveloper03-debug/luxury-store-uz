@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111">
+<title>Luxury Store UZ — Админ-панель</title>
+<style>
+:root{color-scheme:dark;--bg:#101010;--panel:#1b1b1b;--line:#303030;--gold:#c9a96e;--muted:#999;--red:#b94b4b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#f5f5f5;font:15px Arial,sans-serif}
+button,input,textarea,select{font:inherit}
+button{border:0;border-radius:8px;padding:11px 15px;background:var(--gold);color:#111;font-weight:700;cursor:pointer}
+button.secondary{background:#333;color:#fff}
+button.danger{background:#733737;color:#fff}
+button:disabled{opacity:.5}
+input,textarea,select{width:100%;padding:12px;background:#111;color:#fff;border:1px solid var(--line);border-radius:8px;margin:5px 0 12px}
+textarea{min-height:75px;resize:vertical}
+label{display:block;color:#bbb;font-size:13px}
+header{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+header strong{letter-spacing:2px;color:var(--gold)}
+main{max-width:1100px;margin:auto;padding:18px}
+#login{max-width:390px;margin:12vh auto;background:var(--panel);padding:25px;border:1px solid var(--line);border-radius:14px}
+#app{display:none}
+nav{display:flex;gap:8px;overflow:auto;padding:14px 0}
+nav button{white-space:nowrap;background:#292929;color:#ddd}
+nav button.active{background:var(--gold);color:#111}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
+.stat{background:#222;padding:17px;border-radius:10px}
+.stat b{display:block;font-size:26px;color:var(--gold);margin-top:8px}
+.muted{color:var(--muted)}
+.item{padding:14px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border:0}
+.item-title{font-weight:bold;margin-bottom:7px}
+.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.actions button{padding:9px 11px;font-size:13px}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{flex:1}
+img.thumb{width:62px;height:62px;object-fit:cover;border-radius:7px;margin:5px 7px 5px 0}
+#message{position:sticky;top:0;padding:10px;background:#252525;color:var(--gold);display:none;z-index:5}
+.hidden{display:none!important}
+h2{font-size:20px;margin:4px 0 14px}
+h3{font-size:16px}
+small{color:var(--muted)}
+@media(max-width:550px){main{padding:12px}header{padding:15px}nav button{padding:10px 12px}.row{display:block}}
+</style>
+</head>
+<body>
+<header><strong>LUXURY STORE UZ</strong><span class="muted">ADMIN</span></header>
+<main>
+<div id="message"></div>
+<section id="login">
+<h2>Вход в админ-панель</h2>
+<form id="loginForm">
+<label>Логин</label><input id="username" autocomplete="username" required>
+<label>Пароль</label><input id="password" type="password" autocomplete="current-password" required>
+<button type="submit" style="width:100%">Войти</button>
+</form>
+<p class="muted">Доступ только для администратора.</p>
+</section>
+<section id="app">
+<nav>
+<button data-tab="dashboard" class="active">Обзор</button>
+<button data-tab="products">Товары</button>
+<button data-tab="categories">Категории</button>
+<button data-tab="brands">Бренды</button>
+<button data-tab="orders">Заказы</button>
+<button id="logout" class="secondary">Выйти</button>
+</nav>
+<div id="content"></div>
+</section>
+</main>
+<script>
+const API="/api/admin";
+let token=sessionStorage.getItem("luxury_admin_token")||"";
+let currentTab="dashboard";
+let products=[],categories=[],brands=[],orders=[];
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function msg(t){$("message").textContent=t;$("message").style.display="block";setTimeout(()=>$("message").style.display="none",4500)}
+async function api(path,options={}){
+ const headers={...(options.headers||{})};
+ if(token)headers.Authorization="Bearer "+token;
+ if(options.body && !(options.body instanceof FormData))headers["Content-Type"]="application/json";
+ const r=await fetch(API+path,{...options,headers});
+ let data=null;try{data=await r.json()}catch{}
+ if(!r.ok){if(r.status===401||r.status===403){logout();}throw new Error(data?.detail||("Ошибка API: "+r.status))}
+ return data;
+}
+function list(data){if(Array.isArray(data))return data;return data?.items||data?.results||data?.data||[]}
+function money(v){return Number(v||0).toLocaleString("ru-RU")+" сум"}
+function showApp(){ $("login").style.display="none";$("app").style.display="block";loadTab(currentTab)}
+function logout(){token="";sessionStorage.removeItem("luxury_admin_token");$("app").style.display="none";$("login").style.display="block"}
+$("loginForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ try{const d=await api("/login",{method:"POST",body:JSON.stringify({username:$("username").value,password:$("password").value})});token=d.access_token;sessionStorage.setItem("luxury_admin_token",token);showApp();msg("Вход выполнен")}
+ catch(err){msg(err.message)}
+});
+$("logout").onclick=logout;
+document.querySelectorAll("nav [data-tab]").forEach(b=>b.onclick=()=>{currentTab=b.dataset.tab;document.querySelectorAll("nav [data-tab]").forEach(x=>x.classList.toggle("active",x===b));loadTab(currentTab)});
+async function loadData(){
+ [products,categories,brands,orders]=await Promise.all([
+ api("/products?limit=100&offset=0").then(list),
+ api("/categories").then(list),
+ api("/brands").then(list),
+ api("/orders").then(list)
+ ]);
+}
+async function loadTab(tab){
+ const c=$("content");c.innerHTML='<div class="panel">Загрузка…</div>';
+ try{
+  if(tab==="dashboard"){await loadData();dashboard()}
+  if(tab==="products"){products=await api("/products?limit=100&offset=0").then(list);productPage()}
+  if(tab==="categories"){categories=await api("/categories").then(list);categoryPage()}
+  if(tab==="brands"){brands=await api("/brands").then(list);brandPage()}
+  if(tab==="orders"){orders=await api("/orders").then(list);orderPage()}
+ }catch(e){c.innerHTML='<div class="panel">Не удалось загрузить данные: '+esc(e.message)+'</div>'}
+}
+function dashboard(){
+ $("content").innerHTML='<h2>Обзор магазина</h2><div class="grid">'+
+ stat("Товары",products.length)+stat("Категории",categories.length)+stat("Бренды",brands.length)+stat("Заказы",orders.length)+
+ '</div><div class="panel"><h3>Быстрые действия</h3><div class="actions"><button onclick="goTab(\'products\')">Добавить товар</button><button class="secondary" onclick="goTab(\'orders\')">Посмотреть заказы</button></div></div>';
+}
+function stat(name,n){return '<div class="stat">'+esc(name)+'<b>'+n+'</b></div>'}
+function goTab(t){currentTab=t;document.querySelectorAll("nav [data-tab]").forEach(x=>x.classList.toggle("active",x.dataset.tab===t));loadTab(t)}
+function productPage(){
+ let html='<div class="row"><h2>Товары</h2><button onclick="newProduct()">＋ Добавить товар</button></div>';
+ if(!products.length)html+='<div class="panel muted">Товаров пока нет.</div>';
+ products.forEach(p=>{
+  html+='<div class="panel item"><div class="row"><div><div class="item-title">'+esc(p.name)+'</div><small>ID: '+p.id+' · '+(p.is_published?'Опубликован':'Черновик')+'</small><p>'+money(p.price)+'</p></div><div style="text-align:right"><b>'+((p.sizes||[]).length)+' размеров</b><br><small>'+((p.images||[]).length)+' фото</small></div></div>';
+  (p.images||[]).forEach(im=>html+='<img class="thumb" src="'+esc(im.url)+'" alt="Фото товара">');
+  html+='<div class="actions"><button onclick="editProduct('+p.id+')">Изменить</button><button class="secondary" onclick="manageSizes('+p.id+')">Размеры и остатки</button><button class="secondary" onclick="addImage('+p.id+')">Добавить фото</button><button class="danger" onclick="deleteProduct('+p.id+')">Удалить</button></div></div>';
+ });
+ $("content").innerHTML=html;
+}
+async function newProduct(){
+ const name=prompt("Название товара");if(!name)return;
+ const description_ru=prompt("Описание на русском","")||"";
+ const description_uz=prompt("Описание на узбекском","")||"";
+ const brand_id=Number(prompt("ID бренда (сначала создай бренд в разделе «Бренды»)"));
+ const category_id=Number(prompt("ID категории"));
+ const price=Number(prompt("Цена в сумах"));
+ const purchase=prompt("Закупочная цена (можно оставить пустым)","");
+ if(!brand_id||!category_id||!price)return msg("Заполни ID бренда, категории и цену");
+ try{
+  const p=await api("/products",{method:"POST",body:JSON.stringify({name,description_ru,description_uz,brand_id,category_id,price,purchase_price:purchase===""?null:Number(purchase),is_published:false})});
+  msg("Товар создан. Теперь добавь размеры и фотографии.");products=await api("/products?limit=100&offset=0").then(list);productPage();
+ }catch(e){msg(e.message)}
+}
+async function editProduct(id){
+ const p=products.find(x=>x.id===id);if(!p)return;
+ const name=prompt("Название",p.name);if(name===null)return;
+ const description_ru=prompt("Описание RU",p.description_ru||"")??p.description_ru;
+ const description_uz=prompt("Описание UZ",p.description_uz||"")??p.description_uz;
+ const brand_id=Number(prompt("ID бренда",p.brand_id));
+ const category_id=Number(prompt("ID категории",p.category_id));
+ const published=confirm("Опубликовать товар? Нажми «Отмена», чтобы снять с публикации.");
+ try{
+  await api("/products/"+id,{method:"PUT",body:JSON.stringify({name,description_ru,description_uz,brand_id,category_id,is_published:published})});
+  const price=prompt("Цена (оставь пустым, если менять не нужно)", "");
+  if(price!==null&&price.trim()!==""){
+   const purchase=prompt("Закупочная цена (пусто — не указывать)",p.purchase_price??"");
+   await api("/products/"+id+"/prices",{method:"PATCH",body:JSON.stringify({price:Number(price),purchase_price:purchase===""?null:Number(purchase)})});
+  }
+  msg("Товар обновлён");loadTab("products");
+ }catch(e){msg(e.message)}
+}
+async function deleteProduct(id){if(!confirm("Удалить товар #"+id+"?"))return;try{await api("/products/"+id,{method:"DELETE"});msg("Товар удалён");loadTab("products")}catch(e){msg(e.message)}}
+async function manageSizes(id){
+ const p=products.find(x=>x.id===id);if(!p)return;
+ let text="Размеры товара:\n";(p.sizes||[]).forEach(s=>text+=s.size+": остаток "+s.stock+", резерв "+s.reserved+", доступно "+s.available+" (ID "+s.id+")\n");
+ const action=prompt(text+"\nВведи A — добавить размер, U — изменить остаток, D — удалить размер.");
+ if(!action)return;
+ try{
+  if(action.toUpperCase()==="A"){
+   const size=prompt("Размер (например 42)");if(!size)return;
+   const stock=Number(prompt("Количество на складе","0"));
+   await api("/products/"+id+"/sizes",{method:"POST",body:JSON.stringify({size,stock})});
+  }else if(action.toUpperCase()==="U"){
+   const sid=Number(prompt("ID размера"));const stock=Number(prompt("Новое количество на складе"));
+   await api("/sizes/"+sid,{method:"PUT",body:JSON.stringify({stock})});
+  }else if(action.toUpperCase()==="D"){
+   const sid=Number(prompt("ID размера для удаления"));if(!confirm("Подтвердить удаление размера?"))return;
+   await api("/sizes/"+sid,{method:"DELETE"});
+  }else return;
+  msg("Размеры обновлены");loadTab("products");
+ }catch(e){msg(e.message)}
+}
+async function addImage(id){
+ const input=document.createElement("input");input.type="file";input.accept="image/jpeg,image/png,image/webp";
+ input.onchange=async()=>{if(!input.files[0])return;const fd=new FormData();fd.append("files",input.files[0]);try{await api("/products/"+id+"/images",{method:"POST",body:fd});msg("Фото загружено");loadTab("products")}catch(e){msg(e.message)}};
+ input.click();
+}
+function categoryPage(){
+ let h='<div class="row"><h2>Категории</h2><button onclick="newCategory()">＋ Добавить</button></div>';
+ categories.forEach(x=>h+='<div class="panel item"><b>'+esc(x.name_ru)+'</b> / '+esc(x.name_uz)+'<br><small>Slug: '+esc(x.slug)+' · ID: '+x.id+'</small><div class="actions"><button class="secondary" onclick="editCategory('+x.id+')">Изменить</button><button class="danger" onclick="deleteCategory('+x.id+')">Удалить</button></div></div>');
+ $("content").innerHTML=h;
+}
+async function newCategory(){
+ const slug=prompt("Slug латиницей, например sneakers");if(!slug)return;
+ const name_ru=prompt("Название RU");if(!name_ru)return;
+ const name_uz=prompt("Название UZ");if(!name_uz)return;
+ try{await api("/categories",{method:"POST",body:JSON.stringify({slug,name_ru,name_uz})});msg("Категория создана");loadTab("categories")}catch(e){msg(e.message)}
+}
+async function editCategory(id){
+ const x=categories.find(a=>a.id===id);if(!x)return;
+ const slug=prompt("Slug",x.slug);if(slug===null)return;
+ const name_ru=prompt("Название RU",x.name_ru);if(name_ru===null)return;
+ const name_uz=prompt("Название UZ",x.name_uz);if(name_uz===null)return;
+ try{await api("/categories/"+id,{method:"PUT",body:JSON.stringify({slug,name_ru,name_uz})});msg("Категория обновлена");loadTab("categories")}catch(e){msg(e.message)}
+}
+async function deleteCategory(id){if(!confirm("Удалить категорию?"))return;try{await api("/categories/"+id,{method:"DELETE"});msg("Категория удалена");loadTab("categories")}catch(e){msg(e.message)}}
+function brandPage(){
+ let h='<div class="row"><h2>Бренды</h2><button onclick="newBrand()">＋ Добавить</button></div>';
+ brands.forEach(x=>h+='<div class="panel item"><b>'+esc(x.name)+'</b> <small>· ID: '+x.id+'</small><div class="actions"><button class="danger" onclick="deleteBrand('+x.id+')">Удалить</button></div></div>');
+ $("content").innerHTML=h;
+}
+async function newBrand(){const name=prompt("Название бренда");if(!name)return;try{await api("/brands",{method:"POST",body:JSON.stringify({name})});msg("Бренд создан");loadTab("brands")}catch(e){msg(e.message)}}
+async function deleteBrand(id){if(!confirm("Удалить бренд?"))return;try{await api("/brands/"+id,{method:"DELETE"});msg("Бренд удалён");loadTab("brands")}catch(e){msg(e.message)}}
+function orderPage(){
+ let h='<h2>Заказы</h2>';
+ if(!orders.length)h+='<div class="panel muted">Заказов пока нет.</div>';
+ orders.forEach(o=>{
+  h+='<div class="panel item"><div class="item-title">Заказ #'+o.id+' · '+esc(o.status)+'</div><p>'+esc(o.customer_name)+' · '+esc(o.phone)+'</p><p>'+esc(o.address)+'</p><p><b>'+money(o.total)+'</b></p><small>'+esc(o.created_at||"")+'</small>';
+  h+='<div class="actions"><button class="secondary" onclick="orderDetails('+o.id+')">Подробнее</button><button onclick="changeOrderStatus('+o.id+')">Изменить статус</button></div></div>';
+ });
+ $("content").innerHTML=h;
+}
+async function orderDetails(id){
+ try{const o=await api("/orders/"+id);let s="Заказ #"+o.id+"\nКлиент: "+o.customer_name+"\nТелефон: "+o.phone+"\nАдрес: "+o.address+"\nКомментарий: "+(o.comment||"—")+"\n\nТовары:\n";(o.items||[]).forEach(i=>s+=i.product_name+" · "+i.size+" · "+i.quantity+" шт. · "+money(i.price)+"\n");alert(s)}catch(e){msg(e.message)}
+}
+async function changeOrderStatus(id){
+ const status=prompt("Новый статус: confirmed, shipped, delivered или cancelled");if(!status)return;
+ if(!["confirmed","shipped","delivered","cancelled"].includes(status)){msg("Недопустимый статус");return}
+ if(!confirm("Изменить статус заказа #"+id+" на "+status+"?"))return;
+ try{await api("/orders/"+id+"/status",{method:"PATCH",body:JSON.stringify({status})});msg("Статус заказа обновлён");loadTab("orders")}catch(e){msg(e.message)}
+}
+if(token)showApp();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# Test uploads
+backend/test_uploads/
+
+# Local backup files
+*.bak
+*.before-*
+*.cinematic-backup
+*.profile-backup
